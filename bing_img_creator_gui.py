@@ -3,6 +3,7 @@ import os
 import json
 import requests
 from pathlib import Path
+from datetime import datetime
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QLabel, QLineEdit, QPushButton, 
                              QTextEdit, QComboBox, QSpinBox, QGroupBox)
@@ -106,6 +107,10 @@ class BingImageCreatorGUI(QMainWindow):
         self.current_image_data = None
         self.image_counter = 1
         self.generator = None
+        self.current_phrase = ""
+        self.current_style = ""
+        self.current_prompt = ""
+        self.log_file = Path("Output") / "generation_log.json"
         
         self.init_ui()
         self.load_environment_vars()
@@ -144,6 +149,12 @@ class BingImageCreatorGUI(QMainWindow):
         self.update_env_btn = QPushButton("Update Environment Variables")
         self.update_env_btn.clicked.connect(self.update_environment_vars)
         button_layout.addWidget(self.update_env_btn)
+        
+        # Bing status indicator
+        self.bing_status_label = QLabel("● Bing Status: Not Connected")
+        self.bing_status_label.setStyleSheet("color: red; font-weight: bold;")
+        button_layout.addWidget(self.bing_status_label)
+        
         cookie_layout.addLayout(button_layout)
         
         cookie_group.setLayout(cookie_layout)
@@ -214,6 +225,15 @@ class BingImageCreatorGUI(QMainWindow):
         self.num_images_spin.setRange(1, 4)
         self.num_images_spin.setValue(1)
         controls_layout.addWidget(self.num_images_spin)
+        
+        # Status indicators
+        self.prompt_status_label = QLabel("● Prompt: Ready")
+        self.prompt_status_label.setStyleSheet("color: green; font-weight: bold;")
+        controls_layout.addWidget(self.prompt_status_label)
+        
+        self.image_status_label = QLabel("● Image Gen: Waiting")
+        self.image_status_label.setStyleSheet("color: #FFA500; font-weight: bold;")
+        controls_layout.addWidget(self.image_status_label)
         
         controls_layout.addStretch()
         
@@ -314,6 +334,7 @@ class BingImageCreatorGUI(QMainWindow):
         
         if not u_cookie or not srchhpgusr:
             self.log_error("Both U_COOKIE and SRCHHPGUSR are required")
+            self.update_bing_status(False)
             return
         
         try:
@@ -323,9 +344,11 @@ class BingImageCreatorGUI(QMainWindow):
                 auth_cookie_srchhpgusr=srchhpgusr
             )
             self.log_status("✓ Cookies validated successfully!")
+            self.update_bing_status(True)
         except Exception as e:
             self.log_error(f"Cookie validation failed: {str(e)}")
             self.generator = None
+            self.update_bing_status(False)
     
     def update_environment_vars(self):
         """Update environment variables with current cookie values"""
@@ -370,8 +393,12 @@ class BingImageCreatorGUI(QMainWindow):
         """Generate an enhanced prompt using Ollama"""
         model = self.ollama_combo.currentText()
         
+        self.update_prompt_status("working")
+        
         if model == "None (Direct prompt)":
-            return f"{phrase}, {style}"
+            result = f"{phrase}, {style}"
+            self.update_prompt_status("done")
+            return result
         
         try:
             prompt = f"Create a detailed image generation prompt for: '{phrase}' in {style} style. Only respond with the prompt, no explanations."
@@ -389,12 +416,15 @@ class BingImageCreatorGUI(QMainWindow):
             if response.status_code == 200:
                 result = response.json().get("response", "").strip()
                 self.log_status(f"Generated prompt with {model}")
+                self.update_prompt_status("done")
                 return result
             else:
                 self.log_error("Ollama generation failed, using direct prompt")
+                self.update_prompt_status("done")
                 return f"{phrase}, {style}"
         except Exception as e:
             self.log_error(f"Ollama error: {str(e)}, using direct prompt")
+            self.update_prompt_status("done")
             return f"{phrase}, {style}"
     
     def generate_images(self):
@@ -422,8 +452,14 @@ class BingImageCreatorGUI(QMainWindow):
             else:
                 style = style_data
         
+        # Store current phrase and style for logging
+        self.current_phrase = phrase
+        self.current_style = style
+        
         # Generate prompt
+        self.update_image_status("waiting")
         prompt = self.generate_prompt_with_ollama(phrase, style)
+        self.current_prompt = prompt
         self.generated_prompt_display.setText(prompt)
         self.log_status(f"Using prompt: {prompt}")
         
@@ -439,6 +475,7 @@ class BingImageCreatorGUI(QMainWindow):
             
             # Disable generate button
             self.generate_btn.setEnabled(False)
+            self.update_image_status("working")
             
             # Start generation thread
             self.generation_thread = ImageGenerationThread(self.generator, prompt, num_images)
@@ -450,6 +487,7 @@ class BingImageCreatorGUI(QMainWindow):
         except Exception as e:
             self.log_error(f"Failed to initialize: {str(e)}")
             self.generate_btn.setEnabled(True)
+            self.update_image_status("waiting")
     
     def on_generation_finished(self, image_urls):
         """Handle successful image generation"""
@@ -457,6 +495,7 @@ class BingImageCreatorGUI(QMainWindow):
         
         if not image_urls:
             self.log_error("No images were generated")
+            self.update_image_status("waiting")
             return
         
         self.current_images = image_urls
@@ -468,11 +507,13 @@ class BingImageCreatorGUI(QMainWindow):
         # Enable navigation
         self.update_navigation_buttons()
         self.save_btn.setEnabled(True)
+        self.update_image_status("done")
     
     def on_generation_error(self, error_msg):
         """Handle generation errors"""
         self.generate_btn.setEnabled(True)
         self.log_error(f"Generation failed: {error_msg}")
+        self.update_image_status("waiting")
     
     def display_current_image(self):
         """Display the current image in the preview"""
@@ -534,12 +575,17 @@ class BingImageCreatorGUI(QMainWindow):
             output_dir = Path("Output")
             output_dir.mkdir(exist_ok=True)
             
-            phrase = self.phrase_input.text().strip().replace(" ", "_")
-            filename = output_dir / f"{phrase}_{self.image_counter:04d}.jpg"
+            # Format filename: phrase_style_0001.jpg
+            phrase = self.current_phrase.replace(" ", "_")
+            style = self.current_style.replace(" ", "_").replace("/", "-")
+            filename = output_dir / f"{phrase}_{style}_{self.image_counter:04d}.jpg"
             
             # Save original image data (not scaled version)
             with open(filename, "wb") as f:
                 f.write(self.current_image_data)
+            
+            # Log to JSON file
+            self.log_to_json(filename.name)
             
             self.image_counter += 1
             self.log_status(f"✓ Saved: {filename}")
@@ -553,6 +599,67 @@ class BingImageCreatorGUI(QMainWindow):
     def log_error(self, message):
         """Log an error message"""
         self.status_text.append(f"[ERROR] {message}")
+    
+    def update_bing_status(self, connected):
+        """Update Bing connection status indicator"""
+        if connected:
+            self.bing_status_label.setText("● Bing Status: Connected")
+            self.bing_status_label.setStyleSheet("color: green; font-weight: bold;")
+        else:
+            self.bing_status_label.setText("● Bing Status: Not Connected")
+            self.bing_status_label.setStyleSheet("color: red; font-weight: bold;")
+    
+    def update_prompt_status(self, status):
+        """Update prompt generation status indicator"""
+        if status == "done":
+            self.prompt_status_label.setText("● Prompt: Done")
+            self.prompt_status_label.setStyleSheet("color: green; font-weight: bold;")
+        elif status == "working":
+            self.prompt_status_label.setText("● Prompt: Working")
+            self.prompt_status_label.setStyleSheet("color: red; font-weight: bold;")
+    
+    def update_image_status(self, status):
+        """Update image generation status indicator"""
+        if status == "done":
+            self.image_status_label.setText("● Image Gen: Done")
+            self.image_status_label.setStyleSheet("color: green; font-weight: bold;")
+        elif status == "waiting":
+            self.image_status_label.setText("● Image Gen: Waiting")
+            self.image_status_label.setStyleSheet("color: #FFA500; font-weight: bold;")
+        elif status == "working":
+            self.image_status_label.setText("● Image Gen: Working")
+            self.image_status_label.setStyleSheet("color: red; font-weight: bold;")
+    
+    def log_to_json(self, filename):
+        """Log generation details to JSON file"""
+        try:
+            # Create output directory if it doesn't exist
+            output_dir = Path("Output")
+            output_dir.mkdir(exist_ok=True)
+            
+            # Load existing log or create new one
+            log_data = []
+            if self.log_file.exists():
+                with open(self.log_file, "r", encoding="utf-8") as f:
+                    log_data = json.load(f)
+            
+            # Add new entry
+            entry = {
+                "word_phrase": self.current_phrase,
+                "style": self.current_style,
+                "ai_generated_prompt": self.current_prompt,
+                "date_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "filename": filename
+            }
+            log_data.append(entry)
+            
+            # Save updated log
+            with open(self.log_file, "w", encoding="utf-8") as f:
+                json.dump(log_data, f, indent=2, ensure_ascii=False)
+            
+            self.log_status(f"Logged to {self.log_file}")
+        except Exception as e:
+            self.log_error(f"Failed to log to JSON: {str(e)}")
 
 
 def main():

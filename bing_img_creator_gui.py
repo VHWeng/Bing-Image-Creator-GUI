@@ -103,6 +103,7 @@ class BingImageCreatorGUI(QMainWindow):
         
         self.current_images = []
         self.current_image_index = 0
+        self.current_image_data = None
         self.image_counter = 1
         self.generator = None
         
@@ -173,11 +174,12 @@ class BingImageCreatorGUI(QMainWindow):
         prompt_layout.addLayout(ollama_layout)
         
         # Generated prompt display
-        prompt_display_layout = QHBoxLayout()
+        prompt_display_layout = QVBoxLayout()
         prompt_display_layout.addWidget(QLabel("Generated Prompt:"))
-        self.generated_prompt_display = QLineEdit()
+        self.generated_prompt_display = QTextEdit()
         self.generated_prompt_display.setReadOnly(True)
         self.generated_prompt_display.setPlaceholderText("Generated prompt will appear here...")
+        self.generated_prompt_display.setMaximumHeight(75)
         prompt_display_layout.addWidget(self.generated_prompt_display)
         prompt_layout.addLayout(prompt_display_layout)
         
@@ -228,9 +230,11 @@ class BingImageCreatorGUI(QMainWindow):
         
         self.image_label = QLabel()
         self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.image_label.setMinimumSize(700, 700)
+        self.image_label.setMinimumSize(800, 600)
+        self.image_label.setMaximumSize(1024, 1024)
         self.image_label.setStyleSheet("QLabel { background-color: #f0f0f0; border: 1px solid #ccc; }")
         self.image_label.setText("No image loaded")
+        self.image_label.setScaledContents(False)
         preview_layout.addWidget(self.image_label)
         
         # Navigation buttons
@@ -479,10 +483,13 @@ class BingImageCreatorGUI(QMainWindow):
             url = self.current_images[self.current_image_index]
             response = requests.get(url, timeout=10)
             
+            # Store original image data for saving
+            self.current_image_data = response.content
+            
             pixmap = QPixmap()
             pixmap.loadFromData(response.content)
             
-            # Scale to fit label
+            # Scale to fit label while maintaining aspect ratio
             scaled_pixmap = pixmap.scaled(
                 self.image_label.size(),
                 Qt.AspectRatioMode.KeepAspectRatio,
@@ -519,7 +526,7 @@ class BingImageCreatorGUI(QMainWindow):
     
     def save_current_image(self):
         """Save the current image to disk"""
-        if not self.current_images:
+        if not self.current_images or not self.current_image_data:
             return
         
         try:
@@ -527,14 +534,12 @@ class BingImageCreatorGUI(QMainWindow):
             output_dir = Path("Output")
             output_dir.mkdir(exist_ok=True)
             
-            url = self.current_images[self.current_image_index]
-            response = requests.get(url, timeout=10)
-            
             phrase = self.phrase_input.text().strip().replace(" ", "_")
             filename = output_dir / f"{phrase}_{self.image_counter:04d}.jpg"
             
+            # Save original image data (not scaled version)
             with open(filename, "wb") as f:
-                f.write(response.content)
+                f.write(self.current_image_data)
             
             self.image_counter += 1
             self.log_status(f"✓ Saved: {filename}")

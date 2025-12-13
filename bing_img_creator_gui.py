@@ -170,6 +170,12 @@ class BingImageCreatorGUI(QMainWindow):
         self.phrase_input = QLineEdit()
         self.phrase_input.setPlaceholderText("Enter subject for image generation")
         phrase_layout.addWidget(self.phrase_input)
+        
+        phrase_layout.addWidget(QLabel("Additional Info:"))
+        self.additional_info_input = QLineEdit()
+        self.additional_info_input.setPlaceholderText("Optional: Additional details for AI prompt generation")
+        phrase_layout.addWidget(self.additional_info_input)
+        
         prompt_layout.addLayout(phrase_layout)
         
         # Ollama model selection
@@ -231,8 +237,8 @@ class BingImageCreatorGUI(QMainWindow):
         self.prompt_status_label.setStyleSheet("color: green; font-weight: bold;")
         controls_layout.addWidget(self.prompt_status_label)
         
-        self.image_status_label = QLabel("● Image Gen: Waiting")
-        self.image_status_label.setStyleSheet("color: #FFA500; font-weight: bold;")
+        self.image_status_label = QLabel("● Image Gen: Ready")
+        self.image_status_label.setStyleSheet("color: green; font-weight: bold;")
         controls_layout.addWidget(self.image_status_label)
         
         controls_layout.addStretch()
@@ -389,19 +395,22 @@ class BingImageCreatorGUI(QMainWindow):
         except requests.exceptions.RequestException:
             self.log_status("Ollama not available (optional feature)")
     
-    def generate_prompt_with_ollama(self, phrase, style):
+    def generate_prompt_with_ollama(self, phrase, style, additional_info=""):
         """Generate an enhanced prompt using Ollama"""
         model = self.ollama_combo.currentText()
         
-        self.update_prompt_status("working")
+        # Build base prompt
+        base_prompt = phrase
+        if additional_info:
+            base_prompt = f"{phrase}. Additional context: {additional_info}"
         
         if model == "None (Direct prompt)":
-            result = f"{phrase}, {style}"
+            result = f"{base_prompt}, {style}"
             self.update_prompt_status("done")
             return result
         
         try:
-            prompt = f"Create a detailed image generation prompt for: '{phrase}' in {style} style. Only respond with the prompt, no explanations."
+            prompt = f"Create a detailed image generation prompt for: '{base_prompt}' in {style} style. Only respond with the prompt, no explanations."
             
             response = requests.post(
                 "http://localhost:11434/api/generate",
@@ -421,11 +430,11 @@ class BingImageCreatorGUI(QMainWindow):
             else:
                 self.log_error("Ollama generation failed, using direct prompt")
                 self.update_prompt_status("done")
-                return f"{phrase}, {style}"
+                return f"{base_prompt}, {style}"
         except Exception as e:
             self.log_error(f"Ollama error: {str(e)}, using direct prompt")
             self.update_prompt_status("done")
-            return f"{phrase}, {style}"
+            return f"{base_prompt}, {style}"
     
     def generate_images(self):
         """Generate images using Bing Image Creator"""
@@ -440,6 +449,10 @@ class BingImageCreatorGUI(QMainWindow):
         if not u_cookie or not srchhpgusr:
             self.log_error("Please provide valid cookies")
             return
+        
+        # Set initial status indicators
+        self.update_prompt_status("waiting")
+        self.update_image_status("waiting")
         
         # Get style
         custom_style = self.custom_style_input.text().strip()
@@ -456,9 +469,11 @@ class BingImageCreatorGUI(QMainWindow):
         self.current_phrase = phrase
         self.current_style = style
         
+        # Get additional info
+        additional_info = self.additional_info_input.text().strip()
+        
         # Generate prompt
-        self.update_image_status("waiting")
-        prompt = self.generate_prompt_with_ollama(phrase, style)
+        prompt = self.generate_prompt_with_ollama(phrase, style, additional_info)
         self.current_prompt = prompt
         self.generated_prompt_display.setText(prompt)
         self.log_status(f"Using prompt: {prompt}")
@@ -487,7 +502,8 @@ class BingImageCreatorGUI(QMainWindow):
         except Exception as e:
             self.log_error(f"Failed to initialize: {str(e)}")
             self.generate_btn.setEnabled(True)
-            self.update_image_status("waiting")
+            self.update_prompt_status("done")
+            self.update_image_status("ready")
     
     def on_generation_finished(self, image_urls):
         """Handle successful image generation"""
@@ -513,7 +529,7 @@ class BingImageCreatorGUI(QMainWindow):
         """Handle generation errors"""
         self.generate_btn.setEnabled(True)
         self.log_error(f"Generation failed: {error_msg}")
-        self.update_image_status("waiting")
+        self.update_image_status("ready")
     
     def display_current_image(self):
         """Display the current image in the preview"""
@@ -614,9 +630,9 @@ class BingImageCreatorGUI(QMainWindow):
         if status == "done":
             self.prompt_status_label.setText("● Prompt: Done")
             self.prompt_status_label.setStyleSheet("color: green; font-weight: bold;")
-        elif status == "working":
-            self.prompt_status_label.setText("● Prompt: Working")
-            self.prompt_status_label.setStyleSheet("color: red; font-weight: bold;")
+        elif status == "waiting":
+            self.prompt_status_label.setText("● Prompt: Waiting")
+            self.prompt_status_label.setStyleSheet("color: #FFA500; font-weight: bold;")
     
     def update_image_status(self, status):
         """Update image generation status indicator"""
@@ -629,6 +645,9 @@ class BingImageCreatorGUI(QMainWindow):
         elif status == "working":
             self.image_status_label.setText("● Image Gen: Working")
             self.image_status_label.setStyleSheet("color: red; font-weight: bold;")
+        elif status == "ready":
+            self.image_status_label.setText("● Image Gen: Ready")
+            self.image_status_label.setStyleSheet("color: green; font-weight: bold;")
     
     def log_to_json(self, filename):
         """Log generation details to JSON file"""

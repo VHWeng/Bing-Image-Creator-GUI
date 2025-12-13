@@ -7,9 +7,12 @@ A PyQt6-based graphical user interface for generating images using Bing's Image 
 - 🎨 Generate 1-4 images per request
 - 🎭 40+ pre-defined style templates (Photorealistic, Anime, Oil Painting, etc.)
 - 🤖 Optional Ollama integration for AI-enhanced prompt generation
+- 📝 Additional information field for more detailed prompts
 - 🖼️ Image preview with navigation
-- 💾 Automatic image saving to organized output directory
+- 💾 Automatic image saving with organized naming: `phrase_style_0001.jpg`
+- 📊 JSON logging of all generated images with prompts and metadata
 - 🔐 Cookie management with environment variable support
+- 🚦 Real-time status indicators for connection, prompt, and image generation
 - 📝 Real-time status and error messages
 
 ## Installation
@@ -20,6 +23,12 @@ A PyQt6-based graphical user interface for generating images using Bing's Image 
 - Microsoft Edge or Chrome browser (for cookie extraction)
 
 ### Install Required Packages
+
+```bash
+pip install -r requirements.txt
+```
+
+Or manually:
 
 ```bash
 pip install PyQt6 bing-create requests
@@ -117,23 +126,46 @@ python bing_img_creator_gui.py
    - The app will automatically load cookies from environment variables if available
    - Otherwise, paste your cookie values into the text boxes
    - Click **Validate Cookies** to verify they work
+   - Status indicator will turn 🟢 **Green** if connected, 🔴 **Red** if not
    - Optionally click **Update Environment Variables** to save them for the current session
 
 2. **Create Your Prompt**
-   - Enter a word or phrase describing what you want to generate
-   - (Optional) Select an Ollama model to enhance your prompt
+   - Enter a word or phrase describing what you want to generate (e.g., "sunset beach")
+   - (Optional) Enter additional details in the **Additional Info** field (e.g., "with palm trees, golden hour lighting")
+   - (Optional) Select an Ollama model to enhance your prompt with AI
    - Select a style from the dropdown or enter a custom style
-   - The generated prompt will be displayed in the text box
+   - The generated prompt will be displayed in the text box below
 
 3. **Generate Images**
    - Set the number of images (1-4)
    - Click **Generate Images**
-   - Wait for the generation to complete (typically 30-60 seconds)
+   - Watch the status indicators:
+     - **Prompt Status**: 🟡 Yellow (Waiting) → 🟢 Green (Done)
+     - **Image Gen Status**: 🟡 Yellow (Waiting) → 🔴 Red (Working) → 🟢 Green (Done)
+   - Wait for generation to complete (typically 30-60 seconds)
 
 4. **Review and Save**
    - Use **Previous/Next** buttons to navigate through generated images
    - Click **Save Image (JPG)** to save the current image
-   - Images are saved to the `Output` subdirectory with automatic naming: `phrase_0001.jpg`
+   - Images are saved to the `Output` subdirectory with automatic naming: `phrase_style_0001.jpg`
+   - Each save is logged to `Output/generation_log.json` with full metadata
+
+## Status Indicators
+
+The application provides real-time visual feedback through three status indicators:
+
+### 🔌 Bing Status
+- 🟢 **Green "Connected"** - Cookies validated and ready
+- 🔴 **Red "Not Connected"** - Cookies invalid or not validated
+
+### 📝 Prompt Status
+- 🟢 **Green "Ready/Done"** - Prompt is ready or completed
+- 🟡 **Yellow "Waiting"** - Generating prompt with AI
+
+### 🖼️ Image Gen Status
+- 🟢 **Green "Ready/Done"** - Ready for generation or completed
+- 🟡 **Yellow "Waiting"** - Waiting for prompt to complete
+- 🔴 **Red "Working"** - Currently generating images
 
 ## Style Categories
 
@@ -169,18 +201,84 @@ The app includes 40+ pre-organized styles across 5 categories:
 
 The warning about CPU random generator is from the cryptography library and can be safely ignored. It doesn't affect functionality.
 
+### Status Indicators Not Updating
+
+If status indicators seem stuck:
+- The prompt status should turn yellow when you click "Generate Images", then green when the prompt is ready
+- The image gen status should turn yellow initially, red while generating, and green when complete
+- If they don't update, try restarting the application
+
+### Images Not Saving
+
+- Check that the `Output` directory is writable
+- Ensure you have disk space available
+- Verify the filename doesn't contain invalid characters
+
+### Generation Log Issues
+
+- The log file is created automatically in `Output/generation_log.json`
+- If entries aren't appearing, check file permissions
+- The log appends to existing entries, preserving your history
+
 ## Output
 
+### Saved Images
 - Generated images are saved to the `Output` subdirectory
-- Files are named: `[your_phrase]_0001.jpg`, `[your_phrase]_0002.jpg`, etc.
+- Files are named: `[phrase]_[style]_0001.jpg`, `[phrase]_[style]_0002.jpg`, etc.
+- Example: `sunset_beach_Photorealistic_0001.jpg`
 - Images are saved at full original resolution (typically 1024x1024)
+
+### Generation Log
+A comprehensive JSON log is maintained at `Output/generation_log.json` with entries for each saved image:
+
+```json
+{
+  "word_phrase": "sunset beach",
+  "style": "Photorealistic",
+  "ai_generated_prompt": "A breathtaking sunset over a pristine beach...",
+  "date_time": "2024-12-14 15:30:45",
+  "filename": "sunset_beach_Photorealistic_0001.jpg"
+}
+```
+
+This log helps you:
+- Track what prompts produced which images
+- Recreate successful generations
+- Maintain a history of all your work
+- Reference exact prompts for future iterations
 
 ## Tips for Best Results
 
 1. **Be Specific**: Include details about composition, lighting, mood, and style
-2. **Use Style Keywords**: Combine your phrase with style terms like "cinematic lighting", "highly detailed", "4k"
-3. **Experiment**: Try different Ollama models for varied prompt enhancements
-4. **Iterate**: Generate multiple images and refine your prompt based on results
+2. **Use Additional Info**: The additional information field is perfect for:
+   - Specific details: "red sports car, mountain background"
+   - Lighting: "golden hour, dramatic shadows"
+   - Mood/atmosphere: "peaceful, mysterious, energetic"
+   - Technical details: "wide angle, shallow depth of field"
+3. **Use Style Keywords**: Combine your phrase with style terms like "cinematic lighting", "highly detailed", "4k"
+4. **Experiment with Ollama**: Try different Ollama models for varied prompt enhancements
+5. **Iterate**: Generate multiple images and refine your prompt based on results
+6. **Check the Log**: Review `generation_log.json` to see which prompts worked best
+
+## Advanced Usage
+
+### Using Additional Information Effectively
+
+The **Additional Info** field works best when you separate concerns:
+
+- **Word/Phrase**: Main subject (e.g., "dragon")
+- **Additional Info**: Context and details (e.g., "flying over castle, breathing fire, stormy sky")
+
+When using Ollama, the AI receives: "dragon. Additional context: flying over castle, breathing fire, stormy sky" and expands it into a detailed prompt.
+
+### Naming Convention
+
+Files are automatically named using the pattern: `phrase_style_number.jpg`
+- Spaces in phrases are replaced with underscores
+- Slashes in styles are replaced with hyphens
+- Numbers are zero-padded to 4 digits (0001, 0002, etc.)
+
+Example: `medieval_castle_Cinematic_Film_Still_0001.jpg`
 
 ## License
 

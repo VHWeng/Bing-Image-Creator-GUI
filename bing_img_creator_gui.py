@@ -410,6 +410,7 @@ class BingImageCreatorGUI(QMainWindow):
             return result
         
         try:
+            self.update_prompt_status("working")
             prompt = f"Create a detailed image generation prompt for: '{base_prompt}' in {style} style. Only respond with the prompt, no explanations."
             
             response = requests.post(
@@ -450,7 +451,7 @@ class BingImageCreatorGUI(QMainWindow):
             self.log_error("Please provide valid cookies")
             return
         
-        # Set initial status indicators
+        # Set initial status indicators - both start at waiting (yellow)
         self.update_prompt_status("waiting")
         self.update_image_status("waiting")
         
@@ -488,7 +489,7 @@ class BingImageCreatorGUI(QMainWindow):
             
             num_images = self.num_images_spin.value()
             
-            # Disable generate button
+            # Disable generate button and set image status to working (red)
             self.generate_btn.setEnabled(False)
             self.update_image_status("working")
             
@@ -502,7 +503,7 @@ class BingImageCreatorGUI(QMainWindow):
         except Exception as e:
             self.log_error(f"Failed to initialize: {str(e)}")
             self.generate_btn.setEnabled(True)
-            self.update_prompt_status("done")
+            self.update_prompt_status("ready")
             self.update_image_status("ready")
     
     def on_generation_finished(self, image_urls):
@@ -511,7 +512,7 @@ class BingImageCreatorGUI(QMainWindow):
         
         if not image_urls:
             self.log_error("No images were generated")
-            self.update_image_status("waiting")
+            self.update_image_status("ready")
             return
         
         self.current_images = image_urls
@@ -626,18 +627,38 @@ class BingImageCreatorGUI(QMainWindow):
             self.bing_status_label.setStyleSheet("color: red; font-weight: bold;")
     
     def update_prompt_status(self, status):
-        """Update prompt generation status indicator"""
-        if status == "done":
-            self.prompt_status_label.setText("● Prompt: Done")
+        """Update prompt generation status indicator
+        
+        States:
+        - ready: Green (initial state)
+        - waiting: Yellow (process started)
+        - working: Red (actively processing)
+        - done: Green (completed)
+        """
+        if status == "ready":
+            self.prompt_status_label.setText("● Prompt: Ready")
             self.prompt_status_label.setStyleSheet("color: green; font-weight: bold;")
         elif status == "waiting":
             self.prompt_status_label.setText("● Prompt: Waiting")
             self.prompt_status_label.setStyleSheet("color: #FFA500; font-weight: bold;")
+        elif status == "working":
+            self.prompt_status_label.setText("● Prompt: Working")
+            self.prompt_status_label.setStyleSheet("color: red; font-weight: bold;")
+        elif status == "done":
+            self.prompt_status_label.setText("● Prompt: Done")
+            self.prompt_status_label.setStyleSheet("color: green; font-weight: bold;")
     
     def update_image_status(self, status):
-        """Update image generation status indicator"""
-        if status == "done":
-            self.image_status_label.setText("● Image Gen: Done")
+        """Update image generation status indicator
+        
+        States:
+        - ready: Green (initial state)
+        - waiting: Yellow (queued)
+        - working: Red (actively generating)
+        - done: Green (completed)
+        """
+        if status == "ready":
+            self.image_status_label.setText("● Image Gen: Ready")
             self.image_status_label.setStyleSheet("color: green; font-weight: bold;")
         elif status == "waiting":
             self.image_status_label.setText("● Image Gen: Waiting")
@@ -645,8 +666,8 @@ class BingImageCreatorGUI(QMainWindow):
         elif status == "working":
             self.image_status_label.setText("● Image Gen: Working")
             self.image_status_label.setStyleSheet("color: red; font-weight: bold;")
-        elif status == "ready":
-            self.image_status_label.setText("● Image Gen: Ready")
+        elif status == "done":
+            self.image_status_label.setText("● Image Gen: Done")
             self.image_status_label.setStyleSheet("color: green; font-weight: bold;")
     
     def log_to_json(self, filename):

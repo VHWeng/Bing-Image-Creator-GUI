@@ -140,8 +140,8 @@ python bing_img_creator_gui.py
    - Set the number of images (1-4)
    - Click **Generate Images**
    - Watch the status indicators:
-     - **Prompt Status**: 🟡 Yellow (Waiting) → 🟢 Green (Done)
-     - **Image Gen Status**: 🟡 Yellow (Waiting) → 🔴 Red (Working) → 🟢 Green (Done)
+     - **Prompt Status**: 🟢 Green (Ready) → 🔴 Red (Working) → 🟢 Green (Done)
+     - **Image Gen Status**: 🟢 Green (Ready) → 🟡 Yellow (Waiting) → 🔴 Red (Working) → 🟢 Green (Done)
    - Wait for generation to complete (typically 30-60 seconds)
 
 4. **Review and Save**

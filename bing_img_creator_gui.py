@@ -405,12 +405,21 @@ class BingImageCreatorGUI(QMainWindow):
             base_prompt = f"{phrase}. Additional context: {additional_info}"
         
         if model == "None (Direct prompt)":
+            # Set to working briefly for consistency
+            self.update_prompt_status("working")
+            QApplication.processEvents()
+            
             result = f"{base_prompt}, {style}"
+            
             self.update_prompt_status("done")
+            QApplication.processEvents()
             return result
         
         try:
+            # Set to working (Red) and force update UI before blocking call
             self.update_prompt_status("working")
+            QApplication.processEvents()
+            
             prompt = f"Create a detailed image generation prompt for: '{base_prompt}' in {style} style. Only respond with the prompt, no explanations."
             
             response = requests.post(
@@ -427,14 +436,17 @@ class BingImageCreatorGUI(QMainWindow):
                 result = response.json().get("response", "").strip()
                 self.log_status(f"Generated prompt with {model}")
                 self.update_prompt_status("done")
+                QApplication.processEvents()
                 return result
             else:
                 self.log_error("Ollama generation failed, using direct prompt")
                 self.update_prompt_status("done")
+                QApplication.processEvents()
                 return f"{base_prompt}, {style}"
         except Exception as e:
             self.log_error(f"Ollama error: {str(e)}, using direct prompt")
             self.update_prompt_status("done")
+            QApplication.processEvents()
             return f"{base_prompt}, {style}"
     
     def generate_images(self):
@@ -454,6 +466,8 @@ class BingImageCreatorGUI(QMainWindow):
         # Set initial status indicators - both start at waiting (yellow)
         self.update_prompt_status("waiting")
         self.update_image_status("waiting")
+        # Force UI update so users see the yellow status immediately
+        QApplication.processEvents()
         
         # Get style
         custom_style = self.custom_style_input.text().strip()
@@ -473,7 +487,7 @@ class BingImageCreatorGUI(QMainWindow):
         # Get additional info
         additional_info = self.additional_info_input.text().strip()
         
-        # Generate prompt
+        # Generate prompt (this will update prompt status to Red then Green)
         prompt = self.generate_prompt_with_ollama(phrase, style, additional_info)
         self.current_prompt = prompt
         self.generated_prompt_display.setText(prompt)
@@ -489,9 +503,12 @@ class BingImageCreatorGUI(QMainWindow):
             
             num_images = self.num_images_spin.value()
             
-            # Disable generate button and set image status to working (red)
+            # Disable generate button 
             self.generate_btn.setEnabled(False)
+            
+            # Set image status to working (red) and force UI update before thread starts
             self.update_image_status("working")
+            QApplication.processEvents()
             
             # Start generation thread
             self.generation_thread = ImageGenerationThread(self.generator, prompt, num_images)
@@ -524,6 +541,8 @@ class BingImageCreatorGUI(QMainWindow):
         # Enable navigation
         self.update_navigation_buttons()
         self.save_btn.setEnabled(True)
+        
+        # Set final status to green
         self.update_image_status("done")
     
     def on_generation_error(self, error_msg):

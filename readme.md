@@ -160,7 +160,7 @@ The application provides real-time visual feedback through three status indicato
 
 ### 📝 Prompt Status
 - 🟢 **Green "Ready/Done"** - Prompt is ready or completed
-- 🟡 **Yellow "Waiting"** - Generating prompt with AI
+- 🔴 **Red "Working"** - Generating prompt with AI
 
 ### 🖼️ Image Gen Status
 - 🟢 **Green "Ready/Done"** - Ready for generation or completed
